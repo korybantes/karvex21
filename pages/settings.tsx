@@ -55,6 +55,7 @@ export default function Settings() {
   const [newUser, setNewUser] = useState({
     email: '', firstName: '', lastName: '', password: '', role: 'driver', driverId: ''
   })
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
 
   // My Account
   const [myAccount, setMyAccount] = useState({ firstName: '', lastName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -138,10 +139,15 @@ export default function Settings() {
   }
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm(t('confirmDeleteUser'))) return
+    setDeleteUserId(userId)
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!deleteUserId) return
     try {
       const token = localStorage.getItem('token')
-      await fetch(`/api/users/${userId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      await fetch(`/api/users/${deleteUserId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      setDeleteUserId(null)
       fetchData()
     } catch (e) { console.error(e) }
   }
@@ -926,6 +932,33 @@ export default function Settings() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE USER CONFIRM MODAL ── */}
+      {deleteUserId && (
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-sm">
+            <div className="modal-header">
+              <h3 className="font-bold text-slate-800 text-base">{locale === 'tr' ? 'Kullanıcıyı Sil' : 'Delete User'}</h3>
+              <button onClick={() => setDeleteUserId(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="text-sm text-slate-600">
+                {locale === 'tr' 
+                  ? 'Bu kullanıcı hesabını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.'
+                  : 'Are you sure you want to delete this user account? This action cannot be undone.'}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setDeleteUserId(null)} className="btn-secondary">{t('cancel')}</button>
+              <button onClick={confirmDeleteUser} className="btn-primary bg-red-600 hover:bg-red-700 border-red-600">
+                {locale === 'tr' ? 'Sil' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -144,6 +144,61 @@ export default function Accounting() {
     }
   }
 
+  const exportToCSV = () => {
+    const locale = router.locale || 'tr'
+    const rows: string[] = []
+
+    // ── INCOME ──
+    rows.push('=== INCOME / GELİRLER ===')
+    rows.push(['Date', 'Invoice #', 'Client', 'NIP', 'Country', 'Description', 'Amount', 'VAT %', 'Currency'].join(','))
+    incomes.forEach((item: any) => {
+      rows.push([
+        item.incomeDate ? new Date(item.incomeDate).toLocaleDateString('en-GB') : '',
+        item.invoiceNumber || '',
+        `"${(item.clientName || '').replace(/"/g, '""')}"`,
+        item.clientNip || '',
+        item.clientCountry || '',
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        item.amount || '',
+        item.vatRate || '',
+        item.currency || 'PLN',
+      ].join(','))
+    })
+
+    rows.push('')
+
+    // ── EXPENSES ──
+    rows.push('=== EXPENSES / GİDERLER ===')
+    rows.push(['Date', 'Invoice #', 'Category', 'Description', 'Vendor', 'Amount', 'VAT %', 'Currency'].join(','))
+    expenses.forEach((item: any) => {
+      rows.push([
+        item.expenseDate ? new Date(item.expenseDate).toLocaleDateString('en-GB') : '',
+        item.invoiceNumber || '',
+        item.category || '',
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        `"${(item.vendorName || '').replace(/"/g, '""')}"`,
+        item.amount || '',
+        item.vatRate || '',
+        item.currency || 'PLN',
+      ].join(','))
+    })
+
+    rows.push('')
+    rows.push(`Total Revenue,${totalIncome.toFixed(2)} PLN`)
+    rows.push(`Total Expenses,${totalExpense.toFixed(2)} PLN`)
+    rows.push(`Net Profit,${(totalIncome - totalExpense).toFixed(2)} PLN`)
+
+    const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `accounting_export_${new Date().toISOString().slice(0,10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   // Formatting helpers
   const fmt = (v: number) => {
     if (currency === 'EUR') return `€${(v / rates.EUR).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -197,7 +252,7 @@ export default function Accounting() {
             >
               {currency === 'PLN' ? t('showInEur') : t('showInPln')}
             </button>
-            <button className="btn-primary text-xs flex items-center gap-1.5">
+            <button onClick={exportToCSV} className="btn-primary text-xs flex items-center gap-1.5">
               <Download size={14} /> {t('exportToExcel')}
             </button>
           </div>

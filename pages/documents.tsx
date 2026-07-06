@@ -41,6 +41,15 @@ export default function Documents() {
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Alert/Confirm modals
+  const [showErrorModal, setShowErrorModal] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectDocId, setRejectDocId] = useState<string | null>(null)
+  const [rejectionReason, setRejectionReason] = useState('')
+
   const [formData, setFormData] = useState({
     documentName: '',
     documentType: 'driver_license',
@@ -78,7 +87,8 @@ export default function Documents() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedFile && formData.relatedEntityType !== 'company') {
-      alert(locale === 'tr' ? 'Lütfen bir dosya seçin.' : 'Please select a file.')
+      setErrorMessage(locale === 'tr' ? 'Lütfen bir dosya seçin.' : 'Please select a file.')
+      setShowErrorModal(true)
       return
     }
     setUploading(true)
@@ -114,18 +124,25 @@ export default function Documents() {
         }, 1200)
       } else {
         const err = await res.json()
-        alert(`Error: ${err.error || 'Upload failed'}`)
+        setErrorMessage(`Error: ${err.error || 'Upload failed'}`)
+        setShowErrorModal(true)
       }
     } catch (e) { console.error(e) }
     finally { setUploading(false) }
   }
 
   const handleDeleteDoc = async (id: string) => {
-    const msg = locale === 'tr' ? 'Bu belgeyi silmek istediğinizden emin misiniz?' : 'Are you sure you want to delete this document?'
-    if (!confirm(msg)) return
+    setDeleteDocId(id)
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDeleteDoc = async () => {
+    if (!deleteDocId) return
     try {
       const token = localStorage.getItem('token')
-      await fetch(`/api/documents/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      await fetch(`/api/documents/${deleteDocId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      setShowDeleteConfirm(false)
+      setDeleteDocId(null)
       fetchData()
     } catch (e) { console.error(e) }
   }
@@ -146,28 +163,57 @@ export default function Documents() {
       })
 
       if (response.ok) {
-        alert(approve ? (locale === 'tr' ? 'Belge onaylandı!' : 'Document approved!') : (locale === 'tr' ? 'Belge reddedildi!' : 'Document rejected!'))
         fetchData()
       } else {
-        alert('Action failed')
+        setErrorMessage('Action failed')
+        setShowErrorModal(true)
       }
     } catch (e) {
       console.error(e)
     }
   }
 
-  const handleDownload = (doc: any) => {
+  const openRejectModal = (id: string) => {
+    setRejectDocId(id)
+    setRejectionReason('')
+    setShowRejectModal(true)
+  }
+
+  const confirmReject = () => {
+    if (rejectDocId) {
+      handleApproveDoc(rejectDocId, false, rejectionReason)
+      setShowRejectModal(false)
+      setRejectDocId(null)
+      setRejectionReason('')
+    }
+  }
+
+  const handleDownload = async (doc: any) => {
     if (!doc.filePath) {
-      alert(locale === 'tr' ? 'Bu belge için dosya bulunamadı.' : 'No file found for this document.')
+      setErrorMessage(locale === 'tr' ? 'Bu belge için dosya bulunamadı.' : 'No file found for this document.')
+      setShowErrorModal(true)
       return
     }
-    const a = document.createElement('a')
-    a.href = doc.filePath
-    a.download = doc.documentName || 'document'
-    a.target = '_blank'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    try {
+      // Fetch the file as a blob to force download (bypasses cross-origin download restriction)
+      const response = await fetch(doc.filePath)
+      if (!response.ok) throw new Error('Failed to fetch file')
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      // Try to preserve extension from the URL
+      const urlParts = doc.filePath.split('/')
+      const originalFilename = urlParts[urlParts.length - 1].split('?')[0]
+      a.download = doc.documentName ? `${doc.documentName}_${originalFilename}` : originalFilename || 'document'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      // Fallback: open in new tab
+      window.open(doc.filePath, '_blank')
+    }
   }
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -633,10 +679,7 @@ export default function Documents() {
                                 {locale === 'tr' ? 'Onayla' : 'Approve'}
                               </button>
                               <button
-                                onClick={() => {
-                                  const reason = prompt(locale === 'tr' ? 'Reddetme nedeni (isteğe bağlı):' : 'Rejection reason (optional):')
-                                  if (reason !== null) handleApproveDoc(doc.id, false, reason)
-                                }}
+                                onClick={() => openRejectModal(doc.id)}
                                 className="btn-secondary py-1 px-2.5 text-xs text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50 flex items-center gap-1"
                               >
                                 {locale === 'tr' ? 'Reddet' : 'Reject'}
@@ -843,6 +886,90 @@ export default function Documents() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ERROR MODAL ── */}
+      {showErrorModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-sm">
+            <div className="modal-header">
+              <h3 className="font-bold text-slate-800 text-base">{locale === 'tr' ? 'Hata' : 'Error'}</h3>
+              <button onClick={() => setShowErrorModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="text-sm text-slate-600">{errorMessage}</p>
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setShowErrorModal(false)} className="btn-primary">{locale === 'tr' ? 'Tamam' : 'OK'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE CONFIRM MODAL ── */}
+      {showDeleteConfirm && (
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-sm">
+            <div className="modal-header">
+              <h3 className="font-bold text-slate-800 text-base">{locale === 'tr' ? 'Belgeyi Sil' : 'Delete Document'}</h3>
+              <button onClick={() => setShowDeleteConfirm(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="text-sm text-slate-600">
+                {locale === 'tr' 
+                  ? 'Bu belgeyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.'
+                  : 'Are you sure you want to delete this document? This action cannot be undone.'}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setShowDeleteConfirm(false)} className="btn-secondary">{t('cancel')}</button>
+              <button onClick={confirmDeleteDoc} className="btn-primary bg-red-600 hover:bg-red-700 border-red-600">
+                {locale === 'tr' ? 'Sil' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── REJECT MODAL ── */}
+      {showRejectModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-sm">
+            <div className="modal-header">
+              <h3 className="font-bold text-slate-800 text-base">{locale === 'tr' ? 'Belgeyi Reddet' : 'Reject Document'}</h3>
+              <button onClick={() => setShowRejectModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body space-y-4">
+              <p className="text-sm text-slate-600">
+                {locale === 'tr' 
+                  ? 'Bu belgeyi reddetmek istediğinizden emin misiniz?'
+                  : 'Are you sure you want to reject this document?'}
+              </p>
+              <div>
+                <label className="label">{locale === 'tr' ? 'Reddetme nedeni (isteğe bağlı)' : 'Rejection reason (optional)'}</label>
+                <textarea
+                  className="input-field"
+                  rows={3}
+                  value={rejectionReason}
+                  onChange={e => setRejectionReason(e.target.value)}
+                  placeholder={locale === 'tr' ? 'Neden belge reddedildi?' : 'Why is this document being rejected?'}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setShowRejectModal(false)} className="btn-secondary">{t('cancel')}</button>
+              <button onClick={confirmReject} className="btn-primary bg-red-600 hover:bg-red-700 border-red-600">
+                {locale === 'tr' ? 'Reddet' : 'Reject'}
+              </button>
+            </div>
           </div>
         </div>
       )}
