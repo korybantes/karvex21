@@ -61,8 +61,17 @@ export default function Settings() {
     const u = JSON.parse(userData)
     setUser(u)
     if (u.role !== 'admin') { router.push('/dashboard'); return }
+    
+    if (router.query.tab === 'users') {
+      setActiveTab('users')
+    } else if (router.query.tab === 'gdpr') {
+      setActiveTab('gdpr')
+    } else {
+      setActiveTab('company')
+    }
+    
     fetchData()
-  }, [])
+  }, [router.query.tab])
 
   const fetchData = async () => {
     setLoading(true)

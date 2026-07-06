@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Globe,
   Activity,
+  UserCog,
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -70,6 +71,7 @@ export default function Layout({ children, user }: LayoutProps) {
   const adminNav = [
     { name: t('dashboard'), href: '/dashboard', icon: LayoutDashboard },
     { name: t('drivers'), href: '/drivers', icon: Users },
+    { name: t('users'), href: '/settings?tab=users', icon: UserCog },
     { name: t('vehicles'), href: '/vehicles', icon: Truck },
     { name: t('documents'), href: '/documents', icon: FileText },
     { name: t('accounting'), href: '/accounting', icon: Calculator },
@@ -146,7 +148,7 @@ export default function Layout({ children, user }: LayoutProps) {
           <p className="text-slate-500 text-[10px] font-semibold uppercase tracking-widest px-3 mb-2">Nawigacja</p>
           {navigation.map((item) => {
             const Icon = item.icon
-            const isActive = router.pathname === item.href
+            const isActive = router.asPath === item.href
             return (
               <Link key={item.href} href={item.href}>
                 <div className={`nav-item group ${isActive ? 'active' : 'text-slate-400'}`}>
