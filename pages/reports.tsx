@@ -30,7 +30,9 @@ export default function Reports() {
   const { t } = useTranslation('common')
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
-  const [dateRange, setDateRange] = useState<'month' | 'quarter' | 'year'>('month')
+  const [dateRange, setDateRange] = useState<'month' | 'quarter' | 'year' | 'custom'>('month')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
   const [reportData, setReportData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'operational' | 'drivers' | 'vehicles'>('overview')
@@ -44,13 +46,17 @@ export default function Reports() {
     }
     setUser(JSON.parse(userData))
     fetchReportData()
-  }, [dateRange])
+  }, [dateRange, customStartDate, customEndDate])
 
   const fetchReportData = async () => {
     setLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`/api/reports?range=${dateRange}`, {
+      let url = `/api/reports?range=${dateRange}`
+      if (dateRange === 'custom' && customStartDate && customEndDate) {
+        url += `&startDate=${customStartDate}&endDate=${customEndDate}`
+      }
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (response.ok) {
@@ -109,7 +115,24 @@ export default function Reports() {
               <option value="month">{t('thisMonth')}</option>
               <option value="quarter">{t('thisQuarter')}</option>
               <option value="year">{t('thisYear')}</option>
+              <option value="custom">{t('customRange')}</option>
             </select>
+            {dateRange === 'custom' && (
+              <>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="input-field py-2 text-xs"
+                />
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="input-field py-2 text-xs"
+                />
+              </>
+            )}
             <button className="btn-primary text-xs flex items-center gap-1.5">
               <Download size={14} /> {t('exportReport')}
             </button>
