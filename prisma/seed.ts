@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import * as bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -15,7 +15,7 @@ async function main() {
   // ============================================
   const admin = await prisma.user.upsert({
     where: { email: 'admin@fleet.pl' },
-    update: {},
+    update: { passwordHash },
     create: {
       email: 'admin@fleet.pl',
       passwordHash,
@@ -28,7 +28,7 @@ async function main() {
 
   const accountant = await prisma.user.upsert({
     where: { email: 'accounting@fleet.pl' },
-    update: {},
+    update: { passwordHash },
     create: {
       email: 'accounting@fleet.pl',
       passwordHash,
