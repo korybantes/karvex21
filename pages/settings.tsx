@@ -7,10 +7,10 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import Layout from '@/components/Layout'
 import {
   Settings as SettingsIcon, Users, Landmark, Bell, Shield,
-  Plus, Trash2, X, CheckCircle, Edit2, Lock, Eye, EyeOff, RefreshCw
+  Plus, Trash2, X, CheckCircle, Edit2, Lock, Eye, EyeOff, RefreshCw, UserCog, KeyRound, Save
 } from 'lucide-react'
 
-type Tab = 'company' | 'users' | 'gdpr'
+type Tab = 'company' | 'users' | 'gdpr' | 'account'
 type RoleFilter = 'all' | 'admin' | 'accountant' | 'driver'
 
 export default function Settings() {
@@ -46,9 +46,23 @@ export default function Settings() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
   const [showAddUser, setShowAddUser] = useState(false)
   const [editUserId, setEditUserId] = useState<string | null>(null)
+  const [editUser, setEditUser] = useState<any>(null)
+  const [showEditUser, setShowEditUser] = useState(false)
+  const [editPwVisible, setEditPwVisible] = useState(false)
+  const [newPwVisible, setNewPwVisible] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [editSuccess, setEditSuccess] = useState('')
   const [newUser, setNewUser] = useState({
     email: '', firstName: '', lastName: '', password: '', role: 'driver', driverId: ''
   })
+
+  // My Account
+  const [myAccount, setMyAccount] = useState({ firstName: '', lastName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [myAccSaving, setMyAccSaving] = useState(false)
+  const [myAccMsg, setMyAccMsg] = useState('')
+  const [myAccErr, setMyAccErr] = useState('')
+  const [myPwVisible, setMyPwVisible] = useState(false)
+  const [myNewPwVisible, setMyNewPwVisible] = useState(false)
 
   // GDPR
   const [gdprLogs, setGdprLogs] = useState<any[]>([])
@@ -60,16 +74,24 @@ export default function Settings() {
     if (!token || !userData) { router.push('/login'); return }
     const u = JSON.parse(userData)
     setUser(u)
-    if (u.role !== 'admin') { router.push('/dashboard'); return }
-    
+    setMyAccount(prev => ({ ...prev, firstName: u.firstName || '', lastName: u.lastName || '', email: u.email || '' }))
+
+    if (u.role !== 'admin') {
+      setActiveTab('account')
+      setLoading(false)
+      return
+    }
+
     if (router.query.tab === 'users') {
       setActiveTab('users')
     } else if (router.query.tab === 'gdpr') {
       setActiveTab('gdpr')
+    } else if (router.query.tab === 'account') {
+      setActiveTab('account')
     } else {
       setActiveTab('company')
     }
-    
+
     fetchData()
   }, [router.query.tab])
 
@@ -136,6 +158,82 @@ export default function Settings() {
     } catch (e) { console.error(e) }
   }
 
+  const openEditUser = (u: any) => {
+    setEditUser({ ...u, password: '', currentPassword: '' })
+    setEditError('')
+    setEditSuccess('')
+    setShowEditUser(true)
+  }
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setEditError('')
+    setEditSuccess('')
+    try {
+      const token = localStorage.getItem('token')
+      const body: any = {
+        firstName: editUser.firstName,
+        lastName: editUser.lastName,
+        email: editUser.email,
+        role: editUser.role,
+        driverId: editUser.driverId || '',
+        isActive: editUser.isActive,
+      }
+      if (editUser.password) body.password = editUser.password
+      const res = await fetch(`/api/users/${editUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setEditSuccess(locale === 'tr' ? 'Kullanıcı güncellendi!' : 'User updated successfully!')
+        fetchData()
+        setTimeout(() => { setShowEditUser(false); setEditSuccess('') }, 1500)
+      } else {
+        const err = await res.json()
+        setEditError(err.error || (locale === 'tr' ? 'Güncelleme başarısız' : 'Update failed'))
+      }
+    } catch (e) { console.error(e) }
+  }
+
+  const handleSaveMyAccount = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setMyAccErr('')
+    setMyAccMsg('')
+    if (myAccount.newPassword && myAccount.newPassword !== myAccount.confirmPassword) {
+      setMyAccErr(locale === 'tr' ? 'Yeni şifreler eşleşmiyor' : 'New passwords do not match')
+      return
+    }
+    setMyAccSaving(true)
+    try {
+      const token = localStorage.getItem('token')
+      const body: any = {
+        firstName: myAccount.firstName,
+        lastName: myAccount.lastName,
+      }
+      if (myAccount.newPassword) {
+        body.password = myAccount.newPassword
+        body.currentPassword = myAccount.currentPassword
+      }
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setMyAccMsg(locale === 'tr' ? 'Hesabınız güncellendi!' : 'Account updated successfully!')
+        setMyAccount(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }))
+        // Update local storage name
+        const updatedUser = await res.json()
+        localStorage.setItem('user', JSON.stringify({ ...user, firstName: updatedUser.firstName, lastName: updatedUser.lastName }))
+      } else {
+        const err = await res.json()
+        setMyAccErr(err.error || (locale === 'tr' ? 'Güncelleme başarısız' : 'Update failed'))
+      }
+    } catch (e) { console.error(e) }
+    setMyAccSaving(false)
+  }
+
   const roleLabel = (role: string) => {
     if (role === 'admin') return locale === 'tr' ? 'Yönetici' : 'Administrator'
     if (role === 'accountant') return locale === 'tr' ? 'Muhasebeci' : 'Accountant'
@@ -152,6 +250,7 @@ export default function Settings() {
   const filteredUsers = usersList.filter(u => roleFilter === 'all' || u.role === roleFilter)
 
   if (!user) return null
+  const isAdmin = user.role === 'admin'
 
   return (
     <Layout user={user}>
@@ -168,17 +267,26 @@ export default function Settings() {
 
         {/* Tabs */}
         <div className="tab-bar">
-          <div onClick={() => setActiveTab('company')} className={`tab-item ${activeTab === 'company' ? 'active' : ''}`}>
-            <Landmark size={14} /> {locale === 'tr' ? 'Şirket & Oranlar' : 'Company & Rates'}
-          </div>
-          <div onClick={() => setActiveTab('users')} className={`tab-item ${activeTab === 'users' ? 'active' : ''}`}>
-            <Users size={14} /> {t('users')}
-            {usersList.length > 0 && (
-              <span className="ml-1 bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">{usersList.length}</span>
-            )}
-          </div>
-          <div onClick={() => setActiveTab('gdpr')} className={`tab-item ${activeTab === 'gdpr' ? 'active' : ''}`}>
-            <Shield size={14} /> {t('gdpr')}
+          {isAdmin && (
+            <div onClick={() => setActiveTab('company')} className={`tab-item ${activeTab === 'company' ? 'active' : ''}`}>
+              <Landmark size={14} /> {locale === 'tr' ? 'Şirket & Oranlar' : 'Company & Rates'}
+            </div>
+          )}
+          {isAdmin && (
+            <div onClick={() => setActiveTab('users')} className={`tab-item ${activeTab === 'users' ? 'active' : ''}`}>
+              <Users size={14} /> {t('users')}
+              {usersList.length > 0 && (
+                <span className="ml-1 bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">{usersList.length}</span>
+              )}
+            </div>
+          )}
+          {isAdmin && (
+            <div onClick={() => setActiveTab('gdpr')} className={`tab-item ${activeTab === 'gdpr' ? 'active' : ''}`}>
+              <Shield size={14} /> {t('gdpr')}
+            </div>
+          )}
+          <div onClick={() => setActiveTab('account')} className={`tab-item ${activeTab === 'account' ? 'active' : ''}`}>
+            <UserCog size={14} /> {locale === 'tr' ? 'Hesabım' : 'My Account'}
           </div>
         </div>
 
@@ -400,8 +508,15 @@ export default function Settings() {
                         <td>
                           <div className="flex items-center gap-1.5">
                             <button
-                              onClick={() => handleToggleActive(u.id, u.isActive)}
+                              onClick={() => openEditUser(u)}
                               className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                              title={locale === 'tr' ? 'Düzenle' : 'Edit'}
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(u.id, u.isActive)}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 transition-colors"
                               title={u.isActive ? (locale === 'tr' ? 'Engelle' : 'Block') : (locale === 'tr' ? 'Aktif Et' : 'Activate')}
                             >
                               <Lock size={13} />
@@ -473,6 +588,110 @@ export default function Settings() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── MY ACCOUNT TAB ── */}
+        {activeTab === 'account' && (
+          <div className="space-y-5">
+            <div className="card">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}>
+                  {user.firstName?.[0]}{user.lastName?.[0]}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">{user.firstName} {user.lastName}</h3>
+                  <p className="text-xs text-slate-400">{user.email}</p>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg mt-1 inline-block ${roleColor(user.role)}`}>{roleLabel(user.role)}</span>
+                </div>
+              </div>
+              <form onSubmit={handleSaveMyAccount} className="space-y-5">
+                <div>
+                  <p className="form-section-title mb-3"><UserCog size={14} /> {locale === 'tr' ? 'Kişisel Bilgiler' : 'Personal Info'}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">{locale === 'tr' ? 'Ad' : 'First Name'}</label>
+                      <input type="text" className="input-field" value={myAccount.firstName}
+                        onChange={e => setMyAccount({ ...myAccount, firstName: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="label">{locale === 'tr' ? 'Soyad' : 'Last Name'}</label>
+                      <input type="text" className="input-field" value={myAccount.lastName}
+                        onChange={e => setMyAccount({ ...myAccount, lastName: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-5">
+                  <p className="form-section-title mb-3"><KeyRound size={14} /> {locale === 'tr' ? 'Şifre Değiştir' : 'Change Password'}</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="label">{locale === 'tr' ? 'Mevcut Şifre' : 'Current Password'}</label>
+                      <div className="relative">
+                        <input
+                          type={myPwVisible ? 'text' : 'password'}
+                          className="input-field pr-10"
+                          placeholder={locale === 'tr' ? 'Mevcut şifrenizi girin' : 'Enter current password'}
+                          value={myAccount.currentPassword}
+                          onChange={e => setMyAccount({ ...myAccount, currentPassword: e.target.value })}
+                        />
+                        <button type="button" onClick={() => setMyPwVisible(!myPwVisible)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          {myPwVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="label">{locale === 'tr' ? 'Yeni Şifre' : 'New Password'}</label>
+                        <div className="relative">
+                          <input
+                            type={myNewPwVisible ? 'text' : 'password'}
+                            className="input-field pr-10"
+                            placeholder={locale === 'tr' ? 'En az 6 karakter' : 'Min. 6 characters'}
+                            value={myAccount.newPassword}
+                            onChange={e => setMyAccount({ ...myAccount, newPassword: e.target.value })}
+                          />
+                          <button type="button" onClick={() => setMyNewPwVisible(!myNewPwVisible)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            {myNewPwVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label">{locale === 'tr' ? 'Şifre Tekrar' : 'Confirm Password'}</label>
+                        <input
+                          type="password"
+                          className="input-field"
+                          placeholder={locale === 'tr' ? 'Yeni şifreyi tekrar girin' : 'Repeat new password'}
+                          value={myAccount.confirmPassword}
+                          onChange={e => setMyAccount({ ...myAccount, confirmPassword: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {myAccErr && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-xl">{myAccErr}</div>
+                )}
+                {myAccMsg && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                    <CheckCircle size={14} /> {myAccMsg}
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button type="submit" disabled={myAccSaving} className="btn-primary flex items-center gap-2">
+                    <Save size={15} />
+                    {myAccSaving
+                      ? (locale === 'tr' ? 'Kaydediliyor...' : 'Saving...')
+                      : (locale === 'tr' ? 'Değişiklikleri Kaydet' : 'Save Changes')}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
@@ -588,6 +807,122 @@ export default function Settings() {
                 <button type="button" onClick={() => setShowAddUser(false)} className="btn-secondary">{t('cancel')}</button>
                 <button type="submit" className="btn-primary">
                   {locale === 'tr' ? 'Hesap Oluştur' : 'Create Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT USER MODAL ── */}
+      {showEditUser && editUser && (
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-lg">
+            <div className="modal-header">
+              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                <Edit2 size={16} className="text-blue-600" />
+                {locale === 'tr' ? 'Kullanıcıyı Düzenle' : 'Edit User'}
+              </h3>
+              <button onClick={() => setShowEditUser(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleEditUser}>
+              <div className="modal-body space-y-4">
+                {/* Avatar + name header */}
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}>
+                    {editUser.firstName?.[0]}{editUser.lastName?.[0]}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800 text-sm">{editUser.firstName} {editUser.lastName}</p>
+                    <p className="text-xs text-slate-400">{editUser.email}</p>
+                  </div>
+                  <span className={`ml-auto text-xs font-semibold px-2 py-1 rounded-lg ${roleColor(editUser.role)}`}>{roleLabel(editUser.role)}</span>
+                </div>
+
+                {/* Basic info */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">{locale === 'tr' ? 'Ad' : 'First Name'}</label>
+                    <input type="text" className="input-field" value={editUser.firstName}
+                      onChange={e => setEditUser({ ...editUser, firstName: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">{locale === 'tr' ? 'Soyad' : 'Last Name'}</label>
+                    <input type="text" className="input-field" value={editUser.lastName}
+                      onChange={e => setEditUser({ ...editUser, lastName: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Email</label>
+                  <input type="email" className="input-field" value={editUser.email}
+                    onChange={e => setEditUser({ ...editUser, email: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">{locale === 'tr' ? 'Rol' : 'Role'}</label>
+                    <select className="input-field" value={editUser.role}
+                      onChange={e => setEditUser({ ...editUser, role: e.target.value })}>
+                      <option value="admin">{locale === 'tr' ? 'Yönetici' : 'Administrator'}</option>
+                      <option value="accountant">{locale === 'tr' ? 'Muhasebeci' : 'Accountant'}</option>
+                      <option value="driver">{locale === 'tr' ? 'Şoför' : 'Driver'}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{locale === 'tr' ? 'Durum' : 'Status'}</label>
+                    <select className="input-field" value={editUser.isActive ? 'active' : 'blocked'}
+                      onChange={e => setEditUser({ ...editUser, isActive: e.target.value === 'active' })}>
+                      <option value="active">{locale === 'tr' ? 'Aktif' : 'Active'}</option>
+                      <option value="blocked">{locale === 'tr' ? 'Engellendi' : 'Blocked'}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {editUser.role === 'driver' && (
+                  <div>
+                    <label className="label">{locale === 'tr' ? 'Bağlı Şoför Profili' : 'Linked Driver Profile'}</label>
+                    <select className="input-field" value={editUser.driverId || ''}
+                      onChange={e => setEditUser({ ...editUser, driverId: e.target.value })}>
+                      <option value="">{locale === 'tr' ? 'Seçiniz' : 'None'}</option>
+                      {drivers.map(d => (
+                        <option key={d.id} value={d.id}>{d.firstName} {d.lastName} {d.pesel ? `(PESEL: ${d.pesel})` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Password reset section */}
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
+                    <KeyRound size={12} />
+                    {locale === 'tr' ? 'Şifre Sıfırla (isteğe bağlı)' : 'Reset Password (optional)'}
+                  </p>
+                  <div className="relative">
+                    <input
+                      type={editPwVisible ? 'text' : 'password'}
+                      className="input-field pr-10"
+                      placeholder={locale === 'tr' ? 'Boş bırakılırsa şifre değişmez' : 'Leave blank to keep current password'}
+                      value={editUser.password || ''}
+                      onChange={e => setEditUser({ ...editUser, password: e.target.value })}
+                    />
+                    <button type="button" onClick={() => setEditPwVisible(!editPwVisible)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {editPwVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {editError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-xl">{editError}</div>}
+                {editSuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                    <CheckCircle size={14} /> {editSuccess}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowEditUser(false)} className="btn-secondary">{t('cancel')}</button>
+                <button type="submit" className="btn-primary flex items-center gap-2">
+                  <Save size={14} /> {locale === 'tr' ? 'Kaydet' : 'Save Changes'}
                 </button>
               </div>
             </form>
