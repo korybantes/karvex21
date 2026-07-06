@@ -114,6 +114,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             fileSize: file.size ?? null,
             fileType: file.mimetype ?? null,
             uploadedBy: user.id,
+            status: 'pending', // Driver uploads go to pending for admin approval
           },
         })
 

@@ -1,3 +1,4 @@
+import nextI18nConfig from '@/next-i18next.config'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
@@ -539,5 +540,5 @@ export default function Dashboard() {
 }
 
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
-  props: { ...(await serverSideTranslations(locale ?? 'tr', ['common'])) }
+  props: { ...(await serverSideTranslations(locale ?? 'tr', ['common'], nextI18nConfig as any)) }
 })

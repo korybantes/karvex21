@@ -1,3 +1,4 @@
+import nextI18nConfig from '@/next-i18next.config'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
@@ -65,6 +66,36 @@ export default function DriverPortal() {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>, docType: string, docName: string) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const token = localStorage.getItem('token')
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('documentName', docName)
+      fd.append('documentType', docType)
+      fd.append('relatedEntityType', 'driver')
+      fd.append('relatedEntityId', driver.id)
+
+      const response = await fetch('/api/documents/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
+      })
+
+      if (response.ok) {
+        alert(t('documentUploaded') || 'Document uploaded successfully. It is now pending admin approval.')
+        fetchDriverData(user.driverId)
+      } else {
+        alert('Upload failed')
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Upload error')
     }
   }
 
@@ -183,30 +214,69 @@ export default function DriverPortal() {
           <h3 className="font-bold text-slate-800 text-base">{t('myDocuments')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { name: t('licenseCE'), expiry: driver?.licenseExpiryDate },
-              { name: t('residencePermit'), expiry: driver?.permitExpiryDate },
-              { name: t('code95Cert'), expiry: driver?.code95ExpiryDate },
-              { name: t('driverCardTacho'), expiry: driver?.driverCardExpiryDate },
-              { name: t('medicalExam'), expiry: driver?.medicalExamExpiryDate },
-              { name: t('adrCert'), expiry: driver?.adrExpiryDate },
+              { type: 'driver_license', name: t('licenseCE'), expiry: driver?.licenseExpiryDate },
+              { type: 'driver_permit', name: t('residencePermit'), expiry: driver?.permitExpiryDate },
+              { type: 'code_95', name: t('code95Cert'), expiry: driver?.code95ExpiryDate },
+              { type: 'driver_card', name: t('driverCardTacho'), expiry: driver?.driverCardExpiryDate },
+              { type: 'medical_report', name: t('medicalExam'), expiry: driver?.medicalExamExpiryDate },
+              { type: 'adr_certificate', name: t('adrCert'), expiry: driver?.adrExpiryDate },
             ].map(doc => {
-              const statusInfo = getDocStatus(doc.expiry)
+              const uploadedDoc = driver?.documents?.find((d: any) => d.documentType === doc.type)
+              
+              let statusLabel = ''
+              let statusColor = ''
+              let displayExpiry = doc.expiry
+
+              if (uploadedDoc) {
+                if (uploadedDoc.status === 'pending') {
+                  statusLabel = router.locale === 'tr' ? 'Onay Bekliyor' : 'Pending Approval'
+                  statusColor = 'bg-blue-50 text-blue-700 border-blue-100 animate-pulse'
+                } else if (uploadedDoc.status === 'rejected') {
+                  statusLabel = router.locale === 'tr' ? 'Reddedildi' : 'Rejected'
+                  statusColor = 'bg-red-50 text-red-700 border-red-100'
+                } else {
+                  const expiryStatus = getDocStatus(uploadedDoc.expiryDate || doc.expiry)
+                  statusLabel = expiryStatus.status
+                  statusColor = expiryStatus.color
+                  displayExpiry = uploadedDoc.expiryDate || doc.expiry
+                }
+              } else {
+                const expiryStatus = getDocStatus(doc.expiry)
+                statusLabel = expiryStatus.status
+                statusColor = expiryStatus.color
+              }
+
               return (
                 <div key={doc.name} className="card flex flex-col justify-between p-4 bg-white border border-slate-100">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs text-slate-400 font-semibold uppercase">{doc.name}</p>
                       <p className="text-sm font-bold text-slate-800 mt-1">
-                        {doc.expiry ? new Date(doc.expiry).toLocaleDateString(router.locale === 'tr' ? 'tr-TR' : router.locale === 'en' ? 'en-GB' : 'pl-PL') : t('noData')}
+                        {displayExpiry ? new Date(displayExpiry).toLocaleDateString(router.locale === 'tr' ? 'tr-TR' : router.locale === 'en' ? 'en-GB' : 'pl-PL') : t('noData')}
                       </p>
                     </div>
-                    <span className={`status-badge ${statusInfo.color} text-[10px]`}>{statusInfo.status}</span>
+                    <span className={`status-badge ${statusColor} text-[10px]`}>{statusLabel}</span>
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-3">
                     <label className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer flex items-center gap-1">
                       <Upload size={12} /> {t('uploadDocument')}
-                      <input type="file" className="hidden" />
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={e => handleUploadFile(e, doc.type, doc.name)}
+                      />
                     </label>
+                    {uploadedDoc?.filePath && (
+                      <a
+                        href={uploadedDoc.filePath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-slate-500 hover:text-blue-600 font-semibold"
+                      >
+                        {t('view')}
+                      </a>
+                    )}
                   </div>
                 </div>
               )
@@ -305,7 +375,7 @@ export default function DriverPortal() {
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
   return {
     props: {
-      ...(await serverSideTranslations(locale ?? 'pl', ['common'])),
+      ...(await serverSideTranslations(locale ?? 'pl', ['common'], nextI18nConfig as any)),
     },
   }
 }

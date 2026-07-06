@@ -28,6 +28,7 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   uploadedDocuments Document[] @relation("UploadedBy")
+  approvedDocuments Document[] @relation("ApprovedBy")
   auditLogs         AuditLog[]
 
   @@map("users")
@@ -368,12 +369,16 @@ model Document {
   filePath          String   @map("file_path")
   fileSize          Int?     @map("file_size")
   fileType          String?  @map("file_type")
-  status            DocumentStatus @default(valid)
+  status            DocumentStatus @default(pending)
   uploadedBy        String?  @map("uploaded_by")
+  approvedBy        String?  @map("approved_by")
+  approvedAt        DateTime? @map("approved_at")
+  rejectionReason   String?  @map("rejection_reason")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   uploadedByUser    User?    @relation("UploadedBy", fields: [uploadedBy], references: [id])
+  approvedByUser    User?    @relation("ApprovedBy", fields: [approvedBy], references: [id])
   driver            Driver?  @relation("DocumentDriver", fields: [relatedEntityId], references: [id], map: "documents_driver_id_fkey")
   vehicle           Vehicle? @relation("DocumentVehicle", fields: [relatedEntityId], references: [id], map: "documents_vehicle_id_fkey")
 
@@ -409,9 +414,11 @@ enum RelatedEntityType {
 }
 
 enum DocumentStatus {
+  pending
   valid
   expiring_soon
   expired
+  rejected
 }
 
 // ============================================

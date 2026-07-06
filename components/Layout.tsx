@@ -168,7 +168,7 @@ export default function Layout({ children, user }: LayoutProps) {
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-200 text-sm font-medium"
           >
             <LogOut size={18} />
-            <span>Wyloguj się</span>
+            <span>{t('logout')}</span>
           </button>
         </div>
       </aside>
@@ -247,6 +247,15 @@ export default function Layout({ children, user }: LayoutProps) {
                   </div>
                 )}
               </div>
+
+              {/* Logout button in header */}
+              <button
+                onClick={handleLogout}
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-red-50 hover:text-red-600 transition-colors text-slate-600"
+                title={t('logout')}
+              >
+                <LogOut size={18} />
+              </button>
             </div>
           </div>
         </header>

@@ -1,3 +1,4 @@
+import nextI18nConfig from '@/next-i18next.config'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
@@ -9,7 +10,7 @@ import {
   Trash2, X, Upload, CheckCircle, Eye, RefreshCw, Filter
 } from 'lucide-react'
 
-type DocTab = 'company' | 'driver' | 'vehicle'
+type DocTab = 'company' | 'driver' | 'vehicle' | 'pending'
 
 const COMPANY_STATIC = [
   { type: 'krsCompany', num: 'KRS 0000123456', expiry: null, file: null },
@@ -129,6 +130,32 @@ export default function Documents() {
     } catch (e) { console.error(e) }
   }
 
+  const handleApproveDoc = async (id: string, approve: boolean, reason?: string) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/documents/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          status: approve ? 'valid' : 'rejected',
+          rejectionReason: reason || null
+        })
+      })
+
+      if (response.ok) {
+        alert(approve ? (locale === 'tr' ? 'Belge onaylandı!' : 'Document approved!') : (locale === 'tr' ? 'Belge reddedildi!' : 'Document rejected!'))
+        fetchData()
+      } else {
+        alert('Action failed')
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const handleDownload = (doc: any) => {
     if (!doc.filePath) {
       alert(locale === 'tr' ? 'Bu belge için dosya bulunamadı.' : 'No file found for this document.')
@@ -244,6 +271,15 @@ export default function Documents() {
             {filteredVehicleDocs.filter(d => getExpiryStatus(d.expiryDate) !== 'valid').length > 0 && (
               <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
                 {filteredVehicleDocs.filter(d => getExpiryStatus(d.expiryDate) !== 'valid').length}
+              </span>
+            )}
+          </div>
+          <div onClick={() => { setActiveTab('pending'); setFilterEntityId('all'); setSearchTerm('') }}
+            className={`tab-item ${activeTab === 'pending' ? 'active' : ''}`}>
+            {locale === 'tr' ? 'Onay Bekleyenler' : 'Pending Approval'}
+            {documents.filter(d => d.status === 'pending').length > 0 && (
+              <span className="ml-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                {documents.filter(d => d.status === 'pending').length}
               </span>
             )}
           </div>
@@ -522,6 +558,100 @@ export default function Documents() {
             </div>
           </div>
         )}
+
+        {/* ── PENDING APPROVAL DOCS ── */}
+        {activeTab === 'pending' && (
+          <div className="space-y-4">
+            <h3 className="font-bold text-slate-800 text-base">
+              {locale === 'tr' ? 'Onay Bekleyen Sürücü Belgeleri' : 'Driver Documents Pending Approval'}
+            </h3>
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t('documentName')}</th>
+                    <th>{locale === 'tr' ? 'Tür' : 'Type'}</th>
+                    <th>{locale === 'tr' ? 'Şoför' : 'Driver'}</th>
+                    <th>{t('expiryDate')}</th>
+                    <th>{locale === 'tr' ? 'Yükleyen' : 'Uploaded By'}</th>
+                    <th>{t('actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.filter(d => d.status === 'pending').length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-10 text-slate-400">
+                        <CheckCircle size={28} className="mx-auto text-emerald-500 mb-2" />
+                        <p className="text-sm">{locale === 'tr' ? 'Onay bekleyen belge bulunmamaktadır.' : 'All documents are processed. No pending approval.'}</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    documents.filter(d => d.status === 'pending').map(doc => {
+                      const driver = drivers.find(d => d.id === doc.relatedEntityId)
+                      return (
+                        <tr key={doc.id}>
+                          <td className="font-semibold text-slate-800">
+                            <div className="flex items-center gap-2">
+                              <FileText size={14} className="text-blue-400 flex-shrink-0" />
+                              <span>{doc.documentName}</span>
+                            </div>
+                          </td>
+                          <td className="text-xs text-slate-600">{docTypeLabel(doc.documentType)}</td>
+                          <td className="text-sm">
+                            {driver ? `${driver.firstName} ${driver.lastName}` : (doc.driver ? `${doc.driver.firstName} ${doc.driver.lastName}` : '-')}
+                          </td>
+                          <td className="text-xs">{fmtDate(doc.expiryDate)}</td>
+                          <td className="text-xs text-slate-500">
+                            {doc.uploadedByUser ? `${doc.uploadedByUser.firstName} ${doc.uploadedByUser.lastName}` : (doc.uploadedBy ? 'Kierowca / Driver' : '-')}
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              {doc.filePath && (
+                                <a
+                                  href={doc.filePath}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn-secondary p-1.5 hover:bg-slate-100 transition-colors"
+                                  title={t('view')}
+                                >
+                                  <Eye size={13} />
+                                </a>
+                              )}
+                              {doc.filePath && (
+                                <button
+                                  onClick={() => handleDownload(doc)}
+                                  className="btn-secondary p-1.5 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                  title={t('download')}
+                                >
+                                  <Download size={13} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleApproveDoc(doc.id, true)}
+                                className="btn-primary py-1 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-0 flex items-center gap-1"
+                              >
+                                {locale === 'tr' ? 'Onayla' : 'Approve'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt(locale === 'tr' ? 'Reddetme nedeni (isteğe bağlı):' : 'Rejection reason (optional):')
+                                  if (reason !== null) handleApproveDoc(doc.id, false, reason)
+                                }}
+                                className="btn-secondary py-1 px-2.5 text-xs text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50 flex items-center gap-1"
+                              >
+                                {locale === 'tr' ? 'Reddet' : 'Reject'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── ADD / UPLOAD MODAL ── */}
@@ -721,5 +851,5 @@ export default function Documents() {
 }
 
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
-  props: { ...(await serverSideTranslations(locale ?? 'tr', ['common'])) }
+  props: { ...(await serverSideTranslations(locale ?? 'tr', ['common'], nextI18nConfig as any)) }
 })

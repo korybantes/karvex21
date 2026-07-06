@@ -1,3 +1,4 @@
+import nextI18nConfig from '@/next-i18next.config'
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
@@ -123,7 +124,7 @@ export default function Login() {
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
   return {
     props: {
-      ...(await serverSideTranslations(locale ?? 'tr', ['common'])),
+      ...(await serverSideTranslations(locale ?? 'tr', ['common'], nextI18nConfig as any)),
     },
   }
 }

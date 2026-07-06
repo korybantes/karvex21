@@ -1,3 +1,4 @@
+import nextI18nConfig from '@/next-i18next.config'
 import { useTranslation } from 'next-i18next'
 import { GetServerSideProps } from 'next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
@@ -31,7 +32,7 @@ export default function Home() {
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
   return {
     props: {
-      ...(await serverSideTranslations(locale ?? 'tr', ['common'])),
+      ...(await serverSideTranslations(locale ?? 'tr', ['common'], nextI18nConfig as any)),
     },
   }
 }
