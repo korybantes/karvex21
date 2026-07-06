@@ -1,0 +1,557 @@
+// Prisma Schema for Fleet Management System
+// PostgreSQL Database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  role         Role
+  driverId     String?   @unique @map("driver_id")
+  driver       Driver?   @relation(fields: [driverId], references: [id])
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  uploadedDocuments Document[] @relation("UploadedBy")
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+enum Role {
+  admin
+  accountant
+  driver
+}
+
+// ============================================
+// DRIVERS (Şoförler)
+// ============================================
+
+model Driver {
+  id                    String    @id @default(uuid())
+  firstName             String    @map("first_name")
+  lastName              String    @map("last_name")
+  phoneNumbers          Json      @map("phone_numbers") // Array of phone numbers with country codes
+  nationality           String?
+  pesel                 String?   @unique
+  passportNumber        String?   @map("passport_number") @unique
+  
+  // Residence/Work Permit
+  permitType            String?   @map("permit_type")
+  permitIssueDate       DateTime? @map("permit_issue_date")
+  permitExpiryDate      DateTime? @map("permit_expiry_date")
+  
+  // Driving License
+  licenseClass          String?   @map("license_class")
+  licenseIssueCountry   String?   @map("license_issue_country")
+  licenseIssueDate      DateTime? @map("license_issue_date")
+  licenseExpiryDate     DateTime? @map("license_expiry_date")
+  
+  // Code 95
+  code95Number          String?   @map("code_95_number")
+  code95IssueDate       DateTime? @map("code_95_issue_date")
+  code95ExpiryDate      DateTime? @map("code_95_expiry_date")
+  
+  // Driver Card
+  driverCardNumber      String?   @map("driver_card_number")
+  driverCardIssueDate   DateTime? @map("driver_card_issue_date")
+  driverCardExpiryDate  DateTime? @map("driver_card_expiry_date")
+  
+  // Medical/Psychological
+  medicalExamDate       DateTime? @map("medical_exam_date")
+  medicalExamExpiryDate DateTime? @map("medical_exam_expiry_date")
+  
+  // ADR
+  adrCertificateNumber  String?   @map("adr_certificate_number")
+  adrExpiryDate         DateTime? @map("adr_expiry_date")
+  
+  // Employment
+  employmentStartDate   DateTime? @map("employment_start_date")
+  contractType          ContractType?
+  isActive              Boolean   @default(true) @map("is_active")
+  
+  // Address & Emergency
+  address               String?
+  emergencyContactName  String?   @map("emergency_contact_name")
+  emergencyContactPhone String?   @map("emergency_contact_phone")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user                  User?
+  assignments           DriverVehicleAssignment[]
+  payrollEntries        DriverPayrollEntry[]
+  incomes               Income[]
+  expenses              Expense[]
+  documents             Document[] @relation("DocumentDriver")
+
+  @@map("drivers")
+}
+
+enum ContractType {
+  umowa_o_prace
+  B2B
+  umowa_zlecenie
+}
+
+// ============================================
+// VEHICLES (Araçlar)
+// ============================================
+
+model Vehicle {
+  id                          String    @id @default(uuid())
+  plateNumber                 String    @map("plate_number")
+  plateCountry                String    @default("PL") @map("plate_country")
+  brand                       String
+  model                       String
+  year                        Int?
+  vin                         String?
+  trailerInfo                 String?   @map("trailer_info")
+  
+  // Purchase/Leasing
+  purchaseDate                DateTime? @map("purchase_date")
+  leasingType                 LeasingType? @map("leasing_type")
+  leasingEndDate              DateTime? @map("leasing_end_date")
+  
+  // Insurance OC
+  ocPolicyNumber              String?   @map("oc_policy_number")
+  ocCompany                   String?   @map("oc_company")
+  ocStartDate                 DateTime? @map("oc_start_date")
+  ocExpiryDate                DateTime? @map("oc_expiry_date")
+  ocPremium                   Decimal?  @map("oc_premium") @db.Decimal(15, 2)
+  
+  // Insurance AC
+  acPolicyNumber              String?   @map("ac_policy_number")
+  acCompany                   String?   @map("ac_company")
+  acStartDate                 DateTime? @map("ac_start_date")
+  acExpiryDate                DateTime? @map("ac_expiry_date")
+  acPremium                   Decimal?  @map("ac_premium") @db.Decimal(15, 2)
+  
+  // Technical Inspection
+  lastInspectionDate          DateTime? @map("last_inspection_date")
+  nextInspectionDate          DateTime? @map("next_inspection_date")
+  
+  // Tachograph
+  tachographCalibrationDate   DateTime? @map("tachograph_calibration_date")
+  tachographNextCalibrationDate DateTime? @map("tachograph_next_calibration_date")
+  
+  isActive                    Boolean   @default(true) @map("is_active")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
+
+  assignments                 DriverVehicleAssignment[]
+  vehicleExpenses             VehicleExpense[]
+  tollSubscriptions           TollSubscription[]
+  incomes                     Income[]
+  expenses                    Expense[]
+  documents                   Document[] @relation("DocumentVehicle")
+
+  @@map("vehicles")
+}
+
+enum LeasingType {
+  operacyjny
+  finansowy
+  owned
+}
+
+// ============================================
+// DRIVER-VEHICLE ASSIGNMENTS
+// ============================================
+
+model DriverVehicleAssignment {
+  id            String   @id @default(uuid())
+  driverId      String   @map("driver_id")
+  vehicleId     String   @map("vehicle_id")
+  assignedDate  DateTime @map("assigned_date")
+  unassignedDate DateTime? @map("unassigned_date")
+  isActive      Boolean  @default(true) @map("is_active")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  driver        Driver   @relation(fields: [driverId], references: [id])
+  vehicle       Vehicle  @relation(fields: [vehicleId], references: [id])
+
+  @@map("driver_vehicle_assignments")
+}
+
+// ============================================
+// VEHICLE EXPENSES
+// ============================================
+
+model VehicleExpense {
+  id              String   @id @default(uuid())
+  vehicleId       String   @map("vehicle_id")
+  category        ExpenseCategory
+  amount          Decimal  @db.Decimal(15, 2)
+  currency        Currency @default(PLN)
+  plnEquivalent   Decimal? @map("pln_equivalent") @db.Decimal(15, 2)
+  expenseDate     DateTime @map("expense_date")
+  description     String?
+  vatRate         Decimal? @map("vat_rate") @db.Decimal(5, 2)
+  invoiceNumber   String?  @map("invoice_number")
+  vendorName      String?  @map("vendor_name")
+  vendorCountry   String?  @map("vendor_country")
+  documentPath    String?  @map("document_path")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  vehicle         Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@map("vehicle_expenses")
+}
+
+enum ExpenseCategory {
+  fuel
+  toll
+  maintenance
+  tire
+  insurance
+  leasing
+  other
+  fine
+  tax
+}
+
+// ============================================
+// TOLL SUBSCRIPTIONS
+// ============================================
+
+model TollSubscription {
+  id                String   @id @default(uuid())
+  vehicleId         String?  @map("vehicle_id")
+  country           String
+  systemName        String   @map("system_name")
+  subscriptionNumber String? @map("subscription_number")
+  startDate         DateTime @map("start_date")
+  expiryDate        DateTime? @map("expiry_date")
+  balance           Decimal? @db.Decimal(15, 2)
+  currency          Currency @default(EUR)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  vehicle           Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  @@map("toll_subscriptions")
+}
+
+// ============================================
+// DRIVER PAYROLL
+// ============================================
+
+model DriverPayrollEntry {
+  id              String   @id @default(uuid())
+  driverId        String   @map("driver_id")
+  entryType       PayrollEntryType @map("entry_type")
+  amount          Decimal  @db.Decimal(15, 2)
+  currency        Currency @default(PLN)
+  plnEquivalent   Decimal? @map("pln_equivalent") @db.Decimal(15, 2)
+  entryDate       DateTime @map("entry_date")
+  description     String?
+  referenceNumber String?  @map("reference_number")
+  isPaid          Boolean  @default(false) @map("is_paid")
+  paymentDate     DateTime? @map("payment_date")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  driver          Driver   @relation(fields: [driverId], references: [id])
+
+  @@map("driver_payroll_entries")
+}
+
+enum PayrollEntryType {
+  salary
+  advance
+  fine
+  deduction
+  diet
+}
+
+// ============================================
+// INCOME
+// ============================================
+
+model Income {
+  id              String   @id @default(uuid())
+  incomeDate      DateTime @map("income_date")
+  description     String
+  amount          Decimal  @db.Decimal(15, 2)
+  currency        Currency @default(PLN)
+  plnEquivalent   Decimal? @map("pln_equivalent") @db.Decimal(15, 2)
+  vatRate         Decimal  @default(23.00) @map("vat_rate") @db.Decimal(5, 2)
+  invoiceNumber   String?  @map("invoice_number")
+  clientName      String?  @map("client_name")
+  clientNip       String?  @map("client_nip")
+  clientCountry   String?  @map("client_country")
+  vehicleId       String?  @map("vehicle_id")
+  driverId        String?  @map("driver_id")
+  documentPath    String?  @map("document_path")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id])
+  driver          Driver?  @relation(fields: [driverId], references: [id])
+
+  @@map("incomes")
+}
+
+// ============================================
+// EXPENSES (General)
+// ============================================
+
+model Expense {
+  id              String   @id @default(uuid())
+  expenseDate     DateTime @map("expense_date")
+  category        GeneralExpenseCategory
+  amount          Decimal  @db.Decimal(15, 2)
+  currency        Currency @default(PLN)
+  plnEquivalent   Decimal? @map("pln_equivalent") @db.Decimal(15, 2)
+  vatRate         Decimal? @map("vat_rate") @db.Decimal(5, 2)
+  description     String?
+  invoiceNumber   String?  @map("invoice_number")
+  vendorName      String?  @map("vendor_name")
+  vendorNip       String?  @map("vendor_nip")
+  vehicleId       String?  @map("vehicle_id")
+  driverId        String?  @map("driver_id")
+  documentPath    String?  @map("document_path")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id])
+  driver          Driver?  @relation(fields: [driverId], references: [id])
+
+  @@map("expenses")
+}
+
+enum GeneralExpenseCategory {
+  fuel
+  toll
+  salary
+  diet
+  accounting
+  insurance
+  maintenance
+  tire
+  leasing
+  other
+}
+
+// ============================================
+// DOCUMENTS
+// ============================================
+
+model Document {
+  id                String   @id @default(uuid())
+  documentType      DocumentType @map("document_type")
+  documentName      String   @map("document_name")
+  relatedEntityType RelatedEntityType? @map("related_entity_type")
+  relatedEntityId   String?  @map("related_entity_id")
+  issueDate         DateTime? @map("issue_date")
+  expiryDate        DateTime? @map("expiry_date")
+  filePath          String   @map("file_path")
+  fileSize          Int?     @map("file_size")
+  fileType          String?  @map("file_type")
+  status            DocumentStatus @default(valid)
+  uploadedBy        String?  @map("uploaded_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  uploadedByUser    User?    @relation("UploadedBy", fields: [uploadedBy], references: [id])
+  driver            Driver?  @relation("DocumentDriver", fields: [relatedEntityId], references: [id], map: "documents_driver_id_fkey")
+  vehicle           Vehicle? @relation("DocumentVehicle", fields: [relatedEntityId], references: [id], map: "documents_vehicle_id_fkey")
+
+  @@map("documents")
+}
+
+enum DocumentType {
+  company_license
+  community_license
+  ocp
+  vehicle_registration
+  vehicle_insurance
+  vehicle_inspection
+  tachograph_certificate
+  driver_license
+  driver_passport
+  driver_permit
+  code_95
+  driver_card
+  medical_report
+  adr_certificate
+  contract
+  invoice
+  receipt
+  other
+}
+
+enum RelatedEntityType {
+  company
+  vehicle
+  driver
+  general
+}
+
+enum DocumentStatus {
+  valid
+  expiring_soon
+  expired
+}
+
+// ============================================
+// REMINDERS
+// ============================================
+
+model Reminder {
+  id                String   @id @default(uuid())
+  reminderType      String   @map("reminder_type")
+  title             String
+  description       String?
+  relatedEntityType String?  @map("related_entity_type")
+  relatedEntityId   String?  @map("related_entity_id")
+  triggerDate       DateTime @map("trigger_date")
+  priority          Priority @default(medium)
+  status            ReminderStatus @default(pending)
+  isRead            Boolean  @default(false) @map("is_read")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("reminders")
+}
+
+enum Priority {
+  low
+  medium
+  high
+  critical
+}
+
+enum ReminderStatus {
+  pending
+  sent
+  acknowledged
+  dismissed
+}
+
+// ============================================
+// COMPANY DOCUMENTS
+// ============================================
+
+model CompanyDocument {
+  id                String   @id @default(uuid())
+  documentType      CompanyDocType @map("document_type")
+  documentNumber    String?  @map("document_number")
+  issueDate         DateTime? @map("issue_date")
+  expiryDate        DateTime? @map("expiry_date")
+  issuingAuthority  String?  @map("issuing_authority")
+  documentPath      String?  @map("document_path")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("company_documents")
+}
+
+enum CompanyDocType {
+  krs
+  ceidg
+  nip
+  regon
+  transport_license
+  community_license
+  ocp
+}
+
+// ============================================
+// EXCHANGE RATES
+// ============================================
+
+model ExchangeRate {
+  id         String   @id @default(uuid())
+  fromCurrency String @map("from_currency")
+  toCurrency   String @map("to_currency")
+  rate       Decimal  @db.Decimal(15, 6)
+  rateDate   DateTime @map("rate_date")
+  source     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([fromCurrency, toCurrency, rateDate])
+  @@map("exchange_rates")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  userId          String?  @map("user_id")
+  action          String
+  tableName       String   @map("table_name")
+  recordId        String?  @map("record_id")
+  oldValues       Json?    @map("old_values")
+  newValues       Json?    @map("new_values")
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user            User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_log")
+}
+
+// ============================================
+// GDPR REQUESTS
+// ============================================
+
+model GdprRequest {
+  id            String   @id @default(uuid())
+  requestType   GdprRequestType @map("request_type")
+  requesterId   String?  @map("requester_id")
+  requesterEmail String? @map("requester_email")
+  status        GdprStatus @default(pending)
+  requestedAt   DateTime @default(now()) @map("requested_at")
+  completedAt   DateTime? @map("completed_at")
+  notes         String?
+
+  @@map("gdpr_requests")
+}
+
+enum GdprRequestType {
+  access
+  export
+  delete
+}
+
+enum GdprStatus {
+  pending
+  processing
+  completed
+  rejected
+}
+
+// ============================================
+// CURRENCY ENUM
+// ============================================
+
+enum Currency {
+  PLN
+  EUR
+  TRY
+}
