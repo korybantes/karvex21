@@ -106,6 +106,12 @@
     box-shadow: 0 8px 32px rgba(5, 150, 105, 0.3);
   }
 
+  .card-gradient-emerald {
+    background: linear-gradient(135deg, #047857 0%, #10b981 100%);
+    @apply rounded-2xl p-6 text-white;
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
+  }
+
   .card-gradient-red {
     background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
     @apply rounded-2xl p-6 text-white;
