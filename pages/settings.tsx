@@ -52,6 +52,7 @@ export default function Settings() {
 
   // GDPR
   const [gdprLogs, setGdprLogs] = useState<any[]>([])
+  const [drivers, setDrivers] = useState<any[]>([])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -67,12 +68,14 @@ export default function Settings() {
     setLoading(true)
     const token = localStorage.getItem('token')
     try {
-      const [resUsers, resGdpr] = await Promise.all([
+      const [resUsers, resGdpr, resDrivers] = await Promise.all([
         fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/gdpr', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/drivers', { headers: { Authorization: `Bearer ${token}` } }),
       ])
       if (resUsers.ok) setUsersList(await resUsers.json())
       if (resGdpr.ok) setGdprLogs(await resGdpr.json())
+      if (resDrivers.ok) setDrivers(await resDrivers.json())
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
@@ -550,19 +553,24 @@ export default function Settings() {
                 {newUser.role === 'driver' && (
                   <div>
                     <label className="label">
-                      {locale === 'tr' ? 'Bağlı Şoför ID (isteğe bağlı)' : 'Linked Driver ID (optional)'}
+                      {locale === 'tr' ? 'Bağlanacak Şoför Profili (isteğe bağlı)' : 'Link Driver Profile (optional)'}
                     </label>
-                    <input
-                      type="text"
-                      className="input-field font-mono text-xs"
-                      placeholder={locale === 'tr' ? 'Veritabanındaki şoför UUID\'si' : 'Driver UUID from database'}
+                    <select
+                      className="input-field"
                       value={newUser.driverId}
                       onChange={e => setNewUser({ ...newUser, driverId: e.target.value })}
-                    />
+                    >
+                      <option value="">{locale === 'tr' ? 'Seçiniz (isteğe bağlı)' : 'Select profile (optional)'}</option>
+                      {drivers.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {d.firstName} {d.lastName} {d.pesel ? `(PESEL: ${d.pesel})` : ''}
+                        </option>
+                      ))}
+                    </select>
                     <p className="text-[11px] text-slate-400 mt-1">
                       {locale === 'tr'
-                        ? 'Şoför portalına erişim için şoför kaydı ile bağlantı kurar'
-                        : 'Links this account to a driver record for portal access'}
+                        ? 'Şoför portalına erişim için kullanıcıyı şoför kaydıyla bağlar'
+                        : 'Links this account to a driver profile for portal access'}
                     </p>
                   </div>
                 )}
