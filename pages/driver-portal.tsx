@@ -78,8 +78,13 @@ export default function DriverPortal() {
       fd.append('file', file)
       fd.append('documentName', docName)
       fd.append('documentType', docType)
+      const driverId = driver?.id || user?.driverId
+      if (!driverId) {
+        alert('Error: No driver profile linked to this user account.')
+        return
+      }
       fd.append('relatedEntityType', 'driver')
-      fd.append('relatedEntityId', driver.id)
+      fd.append('relatedEntityId', driverId)
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',

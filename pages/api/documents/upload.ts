@@ -72,6 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Upload to Vercel Blob
         const blob = await put(fileName, fileBuffer, {
           access: 'public',
+          addRandomSuffix: true,
         })
 
         const getString = (v: unknown) =>
